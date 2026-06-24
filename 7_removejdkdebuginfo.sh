@@ -14,6 +14,12 @@ fi
 
 cp -r $imagespath/jdk jdkout
 
+# JDK 25 on iOS produces a corrupt java.security.sasl.jmod that jlink
+# from the boot JDK cannot read.  Drop it — SASL is not needed for Minecraft.
+if [[ "$BUILD_IOS" == "1" ]] && [[ $TARGET_VERSION -eq 25 ]]; then
+  rm -f jdkout/jmods/java.security.sasl.jmod
+fi
+
 # JDK no longer create separate JRE image, so we have to create one manually.
 #mkdir -p jreout/bin
 #cp jdkout/bin/{java,jfr,keytool,rmiregistry} jreout/bin/
