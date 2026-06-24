@@ -23,6 +23,23 @@ if [[ "$BUILD_IOS" == "1" ]] && [[ $TARGET_VERSION -eq 25 ]]; then
   cp -r jdkout/{conf,legal,lib,release} jreout/
   rm -rf jreout/lib/jmods jreout/jmods
   rm -f jreout/lib/src.zip
+
+  # Inject GetPropertyAction shim for Caciocavallo (removed from JDK 25's java.base)
+  BOOT_JDK=${JAVA_HOME:-$(/usr/libexec/java_home -v 24 2>/dev/null || echo "")}
+  if [ -n "$BOOT_JDK" ] && [ -f "$BOOT_JDK/jmods/java.base.jmod" ]; then
+    mkdir -p jmod-extract
+    jmod extract "$BOOT_JDK/jmods/java.base.jmod" --dir jmod-extract
+    SHIM_CLASS="jmod-extract/classes/sun/security/action/GetPropertyAction.class"
+    if [ -f "$SHIM_CLASS" ]; then
+      mkdir -p jreout/lib/shim
+      cp "$SHIM_CLASS" jreout/lib/shim/
+      cd jreout/lib/shim
+      jar cf ../sun-security-action.jar .
+      cd ../../..
+      rm -rf jreout/lib/shim
+    fi
+    rm -rf jmod-extract
+  fi
 else
   # Produce the jre equivalent from the jdk
   # (https://blog.adoptium.net/2021/10/jlink-to-produce-own-runtime/)
