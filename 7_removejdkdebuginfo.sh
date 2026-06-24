@@ -14,44 +14,43 @@ fi
 
 cp -r $imagespath/jdk jdkout
 
-# JDK 25 on iOS produces a corrupt java.security.sasl.jmod that jlink
-# from the boot JDK cannot read.  Drop it — SASL is not needed for Minecraft.
-if [[ "$BUILD_IOS" == "1" ]] && [[ $TARGET_VERSION -eq 25 ]]; then
-  rm -f jdkout/jmods/java.security.sasl.jmod
-fi
-
 # JDK no longer create separate JRE image, so we have to create one manually.
-#mkdir -p jreout/bin
-#cp jdkout/bin/{java,jfr,keytool,rmiregistry} jreout/bin/
-#cp -r jdkout/{conf,legal,lib,man,release} jreout/
-#rm jreout/lib/src.zip
-
-export EXTRA_JLINK_OPTION=
-
-if [[ "$TARGET_JDK" == "aarch64" ]] || [[ "$TARGET_JDK" == "x86_64" ]]; then
-   echo "Building for aarch64 or x86_64, introducing JVMCI module"
-   export EXTRA_JLINK_OPTION=,jdk.internal.vm.ci
-fi
-
-# Produce the jre equivalent from the jdk (https://blog.adoptium.net/2021/10/jlink-to-produce-own-runtime/)
-if [[ "$BUILD_IOS" != "1" ]]; then
-   export JLINK_STRIP_ARG="--strip-native-debug-symbols=exclude-debuginfo-files:objcopy=${OBJCOPY}"
+# For iOS JDK 25, the boot JDK's jlink cannot read the jmods,
+# so bypass jlink and create the JRE by copying from the JDK image.
+if [[ "$BUILD_IOS" == "1" ]] && [[ $TARGET_VERSION -eq 25 ]]; then
+  mkdir -p jreout/bin
+  cp jdkout/bin/java jreout/bin/
+  cp -r jdkout/{conf,legal,lib,release} jreout/
+  rm -rf jreout/lib/jmods jreout/jmods
+  rm -f jreout/lib/src.zip
 else
-   export JLINK_STRIP_ARG="--strip-debug"
-fi
+  # Produce the jre equivalent from the jdk
+  # (https://blog.adoptium.net/2021/10/jlink-to-produce-own-runtime/)
+  export EXTRA_JLINK_OPTION=
+  if [[ "$TARGET_JDK" == "aarch64" ]] || [[ "$TARGET_JDK" == "x86_64" ]]; then
+    echo "Building for aarch64 or x86_64, introducing JVMCI module"
+    export EXTRA_JLINK_OPTION=,jdk.internal.vm.ci
+  fi
 
-jlink \
---module-path=jdkout/jmods \
---add-modules $(ls jdkout/jmods/*.jmod 2>/dev/null | sed 's|.*/||; s|\.jmod||' | paste -sd, -)$EXTRA_JLINK_OPTION \
---output jreout \
-$JLINK_STRIP_ARG \
---no-man-pages \
---no-header-files \
---release-info=jdkout/release \
---compress=0 
+  if [[ "$BUILD_IOS" != "1" ]]; then
+    export JLINK_STRIP_ARG="--strip-native-debug-symbols=exclude-debuginfo-files:objcopy=${OBJCOPY}"
+  else
+    export JLINK_STRIP_ARG="--strip-debug"
+  fi
 
-if [[ "$BUILD_IOS" != "1" ]]; then
-   cp freetype-$BUILD_FREETYPE_VERSION/build_android-$TARGET_SHORT/lib/libfreetype.so jreout/lib/
+  jlink \
+  --module-path=jdkout/jmods \
+  --add-modules $(ls jdkout/jmods/*.jmod 2>/dev/null | sed 's|.*/||; s|\.jmod||' | paste -sd, -)$EXTRA_JLINK_OPTION \
+  --output jreout \
+  $JLINK_STRIP_ARG \
+  --no-man-pages \
+  --no-header-files \
+  --release-info=jdkout/release \
+  --compress=0
+
+  if [[ "$BUILD_IOS" != "1" ]]; then
+    cp freetype-$BUILD_FREETYPE_VERSION/build_android-$TARGET_SHORT/lib/libfreetype.so jreout/lib/
+  fi
 fi
 
 # mv jreout/lib/${TARGET_JDK}/libfontmanager.diz jreout/lib/${TARGET_JDK}/libfontmanager.diz.keep
