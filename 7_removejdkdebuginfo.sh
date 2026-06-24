@@ -70,7 +70,7 @@ if [[ "$BUILD_IOS" == "1" ]]; then
   install_name_tool -change build_android-arm64/lib/libfreetype.dylib @rpath/libfreetype.dylib jdkout/lib/libfontmanager.dylib
   install_name_tool -change build_android-arm64/lib/libfreetype.dylib @rpath/libfreetype.dylib jreout/lib/libfontmanager.dylib
 
-  for dafile in $(find j*out -name "*.dylib"); do
+  for dafile in $(find j*out -name "*.dylib" -not -path "*.dSYM/*"); do
     install_name_tool -add_rpath @loader_path -add_rpath @loader_path/jli -add_rpath @loader_path/server \
       -add_rpath @loader_path/.. -add_rpath @loader_path/../jli -add_rpath @loader_path/../server $dafile || true
     ldid -Sios-sign-entitlements.xml $dafile
