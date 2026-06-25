@@ -25,20 +25,17 @@ if [[ "$BUILD_IOS" == "1" ]] && [[ $TARGET_VERSION -eq 25 ]]; then
   rm -f jreout/lib/src.zip
 
   # Inject GetPropertyAction shim for Caciocavallo (removed from JDK 25's java.base)
-  BOOT_JDK=${JAVA_HOME:-$(/usr/libexec/java_home -v 24 2>/dev/null || echo "")}
-  if [ -n "$BOOT_JDK" ] && [ -f "$BOOT_JDK/jmods/java.base.jmod" ]; then
-    mkdir -p jmod-extract
-    jmod extract "$BOOT_JDK/jmods/java.base.jmod" --dir jmod-extract
-    SHIM_CLASS="jmod-extract/classes/sun/security/action/GetPropertyAction.class"
-    if [ -f "$SHIM_CLASS" ]; then
-      mkdir -p jreout/lib/shim
-      cp "$SHIM_CLASS" jreout/lib/shim/
-      cd jreout/lib/shim
+  if command -v javac >/dev/null 2>&1; then
+    SHIM_SRC=shim/sun/security/action/GetPropertyAction.java
+    if [ -f "$SHIM_SRC" ]; then
+      mkdir -p jreout/lib/shim-classes
+      BOOT_JDK_JAVA=${JAVA_HOME:-$(/usr/libexec/java_home -v 24 2>/dev/null || true)}/bin
+      ${BOOT_JDK_JAVA}/javac --release 8 -d jreout/lib/shim-classes "$SHIM_SRC"
+      cd jreout/lib/shim-classes
       jar cf ../sun-security-action.jar .
       cd ../../..
-      rm -rf jreout/lib/shim
+      rm -rf jreout/lib/shim-classes
     fi
-    rm -rf jmod-extract
   fi
 else
   # Produce the jre equivalent from the jdk
